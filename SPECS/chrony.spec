@@ -10,7 +10,7 @@
 
 Name:           chrony
 Version:        4.1
-Release: %{?xsrel}%{?dist}
+Release: %{?xsrel}.1%{?dist}
 Summary:        An NTP client/server
 
 License:        GPLv2
@@ -45,8 +45,8 @@ It can synchronise the system clock with NTP servers, reference clocks
 can also operate as an NTPv4 (RFC 5905) server and peer to provide a time
 service to other computers in the network.
 
-# XenServer has xenserver.pool.ntp.org vendorzone
-%global vendorzone xenserver.
+# XCP-ng xcpng.pool.ntp.org (no hyphen), vendorzone's application is pending (see next comment)
+%global vendorzone xcpng.
 
 %prep
 %autosetup -p1 -n %{name}-%{version}%{?prerelease} -a 10
@@ -78,6 +78,9 @@ sed -e 's|^\(pool \)\(pool.ntp.org.*\)|'\
 -e 's|#\(leapseclist\)|\1|' \
 -e 's|^server.*pool.ntp.org.*|&\n\n# Use NTP servers from DHCP.\nsourcedir /run/chrony-dhcp|' \
         < examples/chrony.conf.example2 > chrony.conf
+
+# XCP-ng: manage pools with CNAME of xcpng.org (without hyphen to align ntp.org's convention)
+sed -e 's|%{vendorzone}pool.ntp.org|ntp.%{vendorzone}org|g' -i chrony.conf
 
 touch -r examples/chrony.conf.example2 chrony.conf
 
@@ -204,6 +207,10 @@ fi
 %dir %attr(750,chrony,chrony) %{_localstatedir}/log/chrony
 
 %changelog
+* Wed Feb 25 2026 Philippe Coval <philippe.coval@vates.tech> - 4.1-1.1
+- Import chrony-4.1-1.xs8
+- Set vendorzone to xcpng, managed by xcpng.org while application is pending.
+
 * Sun Sep 28 2025 Lin Liu <Lin.Liu01@cloud.com> - 4.1-1
 - CP-309761: Update to 4.1
 - CA-417541: Update pool directive to server directive
