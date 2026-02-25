@@ -1,0 +1,13 @@
+diff -up chrony-3.2/examples/chrony.conf.example2.defconfig chrony-3.2/examples/chrony.conf.example2
+--- chrony-3.2/examples/chrony.conf.example2.defconfig	2017-09-15 08:32:09.000000000 +0200
++++ chrony-3.2/examples/chrony.conf.example2	2017-09-18 12:48:08.688020942 +0200
+@@ -28,9 +28,6 @@ rtcsync
+ # Specify file containing keys for NTP authentication.
+ #keyfile /etc/chrony.keys
+ 
+-# Get TAI-UTC offset and leap seconds from the system tz database.
+-#leapsectz right/UTC
+-
+ # Specify directory for log files.
+ logdir /var/log/chrony
+ 
