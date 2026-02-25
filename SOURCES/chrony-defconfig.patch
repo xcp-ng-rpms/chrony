@@ -1,13 +1,29 @@
-diff -up chrony-3.2/examples/chrony.conf.example2.defconfig chrony-3.2/examples/chrony.conf.example2
---- chrony-3.2/examples/chrony.conf.example2.defconfig	2017-09-15 08:32:09.000000000 +0200
-+++ chrony-3.2/examples/chrony.conf.example2	2017-09-18 12:48:08.688020942 +0200
-@@ -28,9 +28,6 @@ rtcsync
+diff -up chrony-4.1/examples/chrony.conf.example2.defconfig chrony-4.1/examples/chrony.conf.example2
+--- chrony-4.1/examples/chrony.conf.example2.defconfig	2021-05-12 13:06:15.000000000 +0200
++++ chrony-4.1/examples/chrony.conf.example2	2019-05-10 12:22:57.000000000 +0200
+@@ -1,5 +1,5 @@
+ # Use public servers from the pool.ntp.org project.
+-# Please consider joining the pool (https://www.pool.ntp.org/join.html).
++# Please consider joining the pool (http://www.pool.ntp.org/join.html).
+ pool pool.ntp.org iburst
+ 
+ # Record the rate at which the system clock gains/losses time.
+@@ -25,18 +25,9 @@ rtcsync
+ # Serve time even if not synchronized to a time source.
+ #local stratum 10
+ 
+-# Require authentication (nts or key option) for all NTP sources.
+-#authselectmode require
+-
  # Specify file containing keys for NTP authentication.
  #keyfile /etc/chrony.keys
  
--# Get TAI-UTC offset and leap seconds from the system tz database.
--#leapsectz right/UTC
+-# Save NTS keys and cookies.
+-ntsdumpdir /var/lib/chrony
 -
- # Specify directory for log files.
- logdir /var/log/chrony
+-# Insert/delete leap seconds by slewing instead of stepping.
+-#leapsecmode slew
+-
+ # Get TAI-UTC offset and leap seconds from the system tz database.
+ #leapsectz right/UTC
  

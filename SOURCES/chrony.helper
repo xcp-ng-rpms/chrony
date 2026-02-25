@@ -8,13 +8,16 @@
 chronyc=/usr/bin/chronyc
 chrony_conf=/etc/chrony.conf
 chrony_service=chronyd.service
-helper_dir=/var/run/chrony-helper
+helper_dir=/run/chrony-helper
 added_servers_file=$helper_dir/added_servers
 
 network_sysconfig_file=/etc/sysconfig/network
-dhclient_servers_files=/var/lib/dhclient/chrony.servers.*
-dnssrv_servers_files=$helper_dir/dnssrv@*
+nm_servers_files="$helper_dir/nm-dhcp.*"
+dhclient_servers_files="/var/lib/dhclient/chrony.servers.*"
+dnssrv_servers_files="$helper_dir/dnssrv@*"
 dnssrv_timer_prefix=chrony-dnssrv@
+
+. $network_sysconfig_file &> /dev/null
 
 chrony_command() {
     $chronyc -a -n -m "$1"
@@ -24,70 +27,76 @@ is_running() {
     chrony_command "tracking" &> /dev/null
 }
 
+get_servers_files() {
+    [ "$PEERNTP" != "no" ] && echo "$nm_servers_files"
+    [ "$PEERNTP" != "no" ] && echo "$dhclient_servers_files"
+    echo "$dnssrv_servers_files"
+}
+
 is_update_needed() {
-    for file in $dhclient_servers_files $dnssrv_servers_files \
-            $added_servers_file; do
+    for file in $(get_servers_files) $added_servers_file; do
         [ -e "$file" ] && return 0
     done
     return 1
+}
+
+remove_daemon_state() {
+    rm -f $added_servers_file
 }
 
 update_daemon() {
     local all_servers_with_args all_servers added_servers
 
     if ! is_running; then
-        rm -f $added_servers_file
+        remove_daemon_state
         return 0
     fi
 
-    all_servers_with_args=$(
-        cat $dhclient_servers_files $dnssrv_servers_files 2> /dev/null)
+    all_servers_with_args=$(cat $(get_servers_files) 2> /dev/null)
 
     all_servers=$(
         echo "$all_servers_with_args" |
-            while read server serverargs; do
+            while read -r server serverargs; do
                 echo "$server"
             done | sort -u)
     added_servers=$( (
         cat $added_servers_file 2> /dev/null
         echo "$all_servers_with_args" |
-            while read server serverargs; do
+            while read -r server serverargs; do
                 [ -z "$server" ] && continue
                 chrony_command "add server $server $serverargs" &> /dev/null &&
                     echo "$server"
             done) | sort -u)
 
     comm -23 <(echo -n "$added_servers") <(echo -n "$all_servers") |
-        while read server; do
+        while read -r server; do
             chrony_command "delete $server" &> /dev/null
         done
 
     added_servers=$(comm -12 <(echo -n "$added_servers") <(echo -n "$all_servers"))
 
-    [ -n "$added_servers" ] && echo "$added_servers" > $added_servers_file ||
+    if [ -n "$added_servers" ]; then
+        echo "$added_servers" > $added_servers_file
+    else
         rm -f $added_servers_file
+    fi
 }
 
 get_dnssrv_servers() {
-    local name=$1
+    local name=$1 output
 
     if ! command -v dig &> /dev/null; then
         echo "Missing dig (DNS lookup utility)" >&2
         return 1
     fi
 
-    (
-        . $network_sysconfig_file &> /dev/null
+    output=$(dig "$name" srv +short +ndots=2 +search 2> /dev/null) || return 0
 
-        output=$(dig "$name" srv +short +ndots=2 +search 2> /dev/null)
-        [ $? -ne 0 ] && return 0
-
-        echo "$output" | while read prio weight port target; do
-            server=${target%.}
-            [ -z "$server" ] && continue
-            echo "$server port $port ${NTPSERVERARGS:-iburst}"
-        done
-    )
+    echo "$output" | while read -r _ _ port target; do
+        server=${target%.}
+        [ -z "$server" ] && continue
+        echo "$server port $port ${NTPSERVERARGS:-iburst}"
+    done
 }
 
 check_dnssrv_name() {
@@ -111,13 +120,19 @@ update_dnssrv_servers() {
     check_dnssrv_name "$name" || return 1
 
     servers=$(get_dnssrv_servers "$name")
-    [ -n "$servers" ] && echo "$servers" > "$srv_file" || rm -f "$srv_file"
+    if [ -n "$servers" ]; then
+        echo "$servers" > "$srv_file"
+    else
+        rm -f "$srv_file"
+    fi
 }
 
 set_dnssrv_timer() {
     local state=$1 name=$2
     local srv_file=$helper_dir/dnssrv@$name servers
-    local timer=$dnssrv_timer_prefix$(systemd-escape "$name").timer
+    local timer
+
+    timer=$dnssrv_timer_prefix$(systemd-escape "$name").timer || return 1
 
     check_dnssrv_name "$name" || return 1
 
@@ -154,8 +169,10 @@ is_source_line() {
 }
 
 list_static_sources() {
-    while read line; do
-        is_source_line "$line" && echo "$line" || :
+    while read -r line; do
+        if is_source_line "$line"; then
+            echo "$line"
+        fi
     done < $chrony_conf
 }
 
@@ -164,11 +181,11 @@ set_static_sources() {
 
     new_config=$(
         sources=$(
-            while read line; do
+            while read -r line; do
                 is_source_line "$line" && echo "$line"
             done)
 
-        while read line; do
+        while read -r line; do
             if ! is_source_line "$line"; then
                 echo "$line"
                 continue
@@ -177,9 +194,12 @@ set_static_sources() {
             tmp_sources=$(
                 local removed=0
 
-                echo "$sources" | while read line2; do
-                    [ "$removed" -ne 0 -o "$line" != "$line2" ] && \
-                        echo "$line2" || removed=1
+                echo "$sources" | while read -r line2; do
+                    if [ "$removed" -ne 0 ] || [ "$line" != "$line2" ]; then
+                        echo "$line2"
+                    else
+                        removed=1
+                    fi
                 done)
 
             [ "$sources" == "$tmp_sources" ] && continue
@@ -203,7 +223,9 @@ print_help() {
     echo "Usage: $0 COMMAND"
     echo
     echo "Commands:"
+    echo "	create-helper-directory"
     echo "	update-daemon"
+    echo "	remove-daemon-state"
     echo "	update-dnssrv-servers NAME"
     echo "	enable-dnssrv NAME"
     echo "	disable-dnssrv NAME"
@@ -215,9 +237,15 @@ print_help() {
 }
 
 case "$1" in
+    create-helper-directory)
+        prepare_helper_dir
+        ;;
     update-daemon|add-dhclient-servers|remove-dhclient-servers)
         is_update_needed || exit 0
         prepare_helper_dir && update_daemon
+        ;;
+    remove-daemon-state)
+        remove_daemon_state
         ;;
     update-dnssrv-servers)
         prepare_helper_dir && update_dnssrv_servers "$2" && update_daemon
