@@ -79,6 +79,11 @@ sed -e 's|^\(pool \)\(pool.ntp.org.*\)|'\
 -e 's|^server.*pool.ntp.org.*|&\n\n# Use NTP servers from DHCP.\nsourcedir /run/chrony-dhcp|' \
         < examples/chrony.conf.example2 > chrony.conf
 
+#{ TODO: https://github.com/xcp-ng-rpms/chrony/pull/1#discussion_r3549768407
+sed -e 's|%{vendorzone}pool.ntp.org|ntp.%{vendorzone}org.example.cloudns.org|g' -i chrony.conf
+cat chrony.conf
+#}
+
 touch -r examples/chrony.conf.example2 chrony.conf
 
 # regenerate the file from getdate.y
