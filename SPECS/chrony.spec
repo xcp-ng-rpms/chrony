@@ -10,7 +10,7 @@
 
 Name:           chrony
 Version:        4.1
-Release: %{?xsrel}.1%{?dist}
+Release: %{?xsrel}.1~XCPNG2830.1%{?dist}
 Summary:        An NTP client/server
 
 License:        GPLv2
