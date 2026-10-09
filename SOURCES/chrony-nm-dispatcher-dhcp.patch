@@ -1,0 +1,43 @@
+From: Robert Fairley <rfairley@redhat.com>
+Date: Wed, 17 Jun 2020 10:14:19 -0400
+Subject: [PATCH] examples/nm-dispatcher.dhcp: use sysconfig
+
+Use the PEERNTP and NTPSERVERARGS environment variables from
+/etc/sysconfig/network{-scripts}.
+
+Co-Authored-By: Christian Glombek <cglombek@redhat.com>
+
+diff --git a/examples/chrony.nm-dispatcher.dhcp b/examples/chrony.nm-dispatcher.dhcp
+index 6ea4c37..a6ad35a 100644
+--- a/examples/chrony.nm-dispatcher.dhcp
++++ b/examples/chrony.nm-dispatcher.dhcp
+@@ -6,16 +6,24 @@
+ 
+ chronyc=/usr/bin/chronyc
+ default_server_options=iburst
+-server_dir=/var/run/chrony-dhcp
++server_dir=/run/chrony-dhcp
+ 
+ dhcp_server_file=$server_dir/$interface.sources
+ # DHCP4_NTP_SERVERS is passed from DHCP options by NetworkManager.
+ nm_dhcp_servers=$DHCP4_NTP_SERVERS
+ 
++[ -f /etc/sysconfig/network ] && . /etc/sysconfig/network
++[ -f /etc/sysconfig/network-scripts/ifcfg-"${interface}" ] && \
++    . /etc/sysconfig/network-scripts/ifcfg-"${interface}"
++
+ add_servers_from_dhcp() {
+     rm -f "$dhcp_server_file"
++
++    # Don't add NTP servers if PEERNTP=no specified; return early.
++    [ "$PEERNTP" = "no" ] && return
++
+     for server in $nm_dhcp_servers; do
+-        echo "server $server $default_server_options" >> "$dhcp_server_file"
++        echo "server $server ${NTPSERVERARGS:-$default_server_options}" >> "$dhcp_server_file"
+     done
+     $chronyc reload sources > /dev/null 2>&1 || :
+ }
+-- 
+2.29.2
+
